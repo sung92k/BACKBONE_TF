@@ -6,6 +6,7 @@ import cv2
 import albumentations
 from config import *
 
+
 class ImageNet_Generator(tf.keras.utils.Sequence):
     def __init__(self, dataset_info_path, batch_size, input_shape, num_classes, augs, is_train=True,
                  label_smooting=False):
@@ -45,7 +46,8 @@ class ImageNet_Generator(tf.keras.utils.Sequence):
 
     def __data_gen(self, data):
         cv2.setNumThreads(0)
-        batch_img = np.zeros(shape=(self.batch_size, self.input_shape[0], self.input_shape[1], self.input_shape[2]), dtype=np.float32)
+        batch_img = np.zeros(shape=(self.batch_size, self.input_shape[0], self.input_shape[1], self.input_shape[2]),
+                             dtype=np.float32)
         batch_cls = np.zeros(shape=(self.batch_size, self.num_classes), dtype=np.float32)
         img_list = []
         cls_list = []
@@ -72,8 +74,10 @@ class ImageNet_Generator(tf.keras.utils.Sequence):
             batch_cls[i] = cls
         return batch_img, batch_cls
 
+
 class Yolo_Generator(tf.keras.utils.Sequence):
-    def __init__(self, dataset_info_path, batch_size, input_shape, num_classes, anchors, output_shape_list, augs, is_train=True, label_smooting=False):
+    def __init__(self, dataset_info_path, batch_size, input_shape, num_classes, anchors, output_shape_list, augs,
+                 iou_threshold=0.5, is_train=True, label_smooting=False):
         self.dataset_info_path = dataset_info_path
         self.batch_size = batch_size
         self.input_shape = input_shape
@@ -81,8 +85,9 @@ class Yolo_Generator(tf.keras.utils.Sequence):
         self.anchors = anchors
         self.output_shape_list = output_shape_list
         self.n_branch = len(self.output_shape_list)
-        self.anchor_num_per_branch = int(len(self.anchors) / len(self.output_shape_list))
+        self.n_anchor_per_branch = int(len(self.anchors) / len(self.output_shape_list))
         self.augs = augs
+        self.iou_threshold = iou_threshold
         self.is_train = is_train
         self.label_smooting = label_smooting
         self.data = self.get_dataset(dataset_info_path)
@@ -130,13 +135,12 @@ class Yolo_Generator(tf.keras.utils.Sequence):
         iou = intersection_area / (bbox1_area + bbox2_area - intersection_area + EPS)
         return iou
 
-
     def __data_gen(self, data):
         cv2.setNumThreads(0)
         batch_img = np.zeros(shape=(self.batch_size, self.input_shape[0], self.input_shape[1], self.input_shape[2]), dtype=np.float32)
         batch_gt = []
         for out_shape in self.output_shape_list:
-            batch_gt.append(np.zeros((self.batch_size, out_shape[0], out_shape[1], self.anchor_num_per_branch, (5 + self.num_classes)), dtype=np.float32))
+            batch_gt.append(np.zeros((self.batch_size, out_shape[0], out_shape[1], self.n_anchor_per_branch, (5 + self.num_classes)), dtype=np.float32))
         for index, img_path in enumerate(data):
             img = cv2.imread(img_path)
             img = cv2.resize(img, (self.input_shape[0], self.input_shape[1]))
@@ -173,7 +177,7 @@ class Yolo_Generator(tf.keras.utils.Sequence):
                         # y2 = float(cy) + float(h) / 2
             #             cv2.rectangle(img, (int(x1 * self.input_shape[0]), int(y1 * self.input_shape[1])), (int(x2 * self.input_shape[0]), int(y2 * self.input_shape[1])), (0, 0, 255), 1)
             # for index in range(self.n_branch):
-            #     for a_index in range(self.anchor_num_per_branch):
+            #     for a_index in range(self.n_anchor_per_branch):
             #         cv2.imshow(str(self.output_shape_list[index]) + "_anchor_" + str(a_index), cv2.resize(batch_gt[index][0, :, :, a_index, 0], (self.input_shape[0], self.input_shape[1])))
             # cv2.imshow("test", img)
             # cv2.waitKey()
@@ -181,6 +185,8 @@ class Yolo_Generator(tf.keras.utils.Sequence):
 
 
 if __name__ == "__main__":
-    gen = Yolo_Generator(dataset_info_path=train_txt_path, batch_size=1, input_shape=INPUT_SHAPE, output_shape_list=[(13, 13), (26, 26), (52, 52)], num_classes=NUM_CLASSES, anchors=ANCHORS, augs=None, is_train=True)
+    gen = Yolo_Generator(dataset_info_path=train_txt_path, batch_size=1, input_shape=INPUT_SHAPE,
+                         output_shape_list=[(13, 13), (26, 26), (52, 52)], num_classes=NUM_CLASSES, anchors=ANCHORS,
+                         augs=None, is_train=True)
     for i in tqdm.tqdm(range(gen.__len__())):
         gen.__getitem__(i)

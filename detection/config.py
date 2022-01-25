@@ -10,7 +10,7 @@ BATCH_SIZE = 64
 train_txt_path = "C:/Users/sangmin/Desktop/Dacon_LG/dataset/bdd/train.txt"
 valid_txt_path = "C:/Users/sangmin/Desktop/Dacon_LG/dataset/bdd/valid.txt"
 img_format = ".jpg"
-save_dir = "./saved_models/classification/"
+save_dir = "./saved_models/detection/"
 ANCHORS = []
 with open("anchors.txt", 'r') as f:
     lines = f.readlines()

@@ -5,7 +5,6 @@ import albumentations
 from detection.config import *
 from network.backbone.regnet.regnet import RegNetY
 from detection.generator import Yolo_Generator
-from utils.metrics import top_1_categorical_accuracy, top_5_categorical_accuracy
 from utils.utils import get_flops
 from utils.logger import Logger
 from utils.scheduler import CosineAnnealingLRScheduler
@@ -13,7 +12,13 @@ from tensorflow_addons.optimizers import RectifiedAdam
 from network.common.blocks import StemBlock
 from network.neck.neck import FPN
 from network.head.head import Yolo_Head
-from utils.loss import Yolo_Loss
+from loss import Yolo_Loss
+from tensorflow.python.client import device_lib
+device_lib.list_local_devices()
+
+
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 def Detection_Model(in_shape, num_classes, n_block_per_stage, filter_per_stage, kernel_size_per_stage,
                     strides_per_stage, groups_per_stage, activation,
@@ -65,8 +70,8 @@ if __name__ == '__main__':
                             [32, 32, 32],
                             "relu",
                             WEIGHT_DECAY)
-    model.summary()
-    get_flops(model)
+    # model.summary()
+    # get_flops(model)
     output_shape_list = []
     for output in model.outputs:
         output_shape_list.append(output.get_shape()[1:3])
@@ -98,9 +103,9 @@ if __name__ == '__main__':
     model.compile(
         optimizer=RectifiedAdam(LR),
         loss={
-            "Yolo_0": Yolo_Loss(),
-            "Yolo_1": Yolo_Loss(),
-            "Yolo_2": Yolo_Loss(),
+            "Yolo_0": Yolo_Loss(scale_xy=1.2),
+            "Yolo_1": Yolo_Loss(scale_xy=1.1),
+            "Yolo_2": Yolo_Loss(scale_xy=1.05),
         }
     )
 
