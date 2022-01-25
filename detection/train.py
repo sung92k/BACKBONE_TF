@@ -13,10 +13,6 @@ from network.common.blocks import StemBlock
 from network.neck.neck import FPN
 from network.head.head import Yolo_Head
 from loss import Yolo_Loss
-from tensorflow.python.client import device_lib
-device_lib.list_local_devices()
-
-
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -103,9 +99,9 @@ if __name__ == '__main__':
     model.compile(
         optimizer=RectifiedAdam(LR),
         loss={
-            "Yolo_0": Yolo_Loss(scale_xy=1.2),
-            "Yolo_1": Yolo_Loss(scale_xy=1.1),
-            "Yolo_2": Yolo_Loss(scale_xy=1.05),
+            "Yolo_0": Yolo_Loss(batch_size=BATCH_SIZE, scale=BRANCH_0_SCALE),
+            "Yolo_1": Yolo_Loss(batch_size=BATCH_SIZE, scale=BRANCH_1_SCALE),
+            "Yolo_2": Yolo_Loss(batch_size=BATCH_SIZE, scale=BRANCH_2_SCALE),
         }
     )
 
