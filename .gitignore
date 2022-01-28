@@ -254,4 +254,5 @@ cython_debug/
 **/logs/
 **/saved_model/
 *.h5
+**/videos/
 # End of https://www.toptal.com/developers/gitignore/api/python,pycharm

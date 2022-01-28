@@ -2,6 +2,7 @@ import tensorflow as tf
 import datetime
 import os
 import albumentations
+import warnings
 from detection.config import *
 from network.backbone.regnet.regnet import RegNetY
 from detection.generator import Yolo_Generator
@@ -13,6 +14,7 @@ from network.common.blocks import StemBlock
 from network.neck.neck import FPN
 from network.head.head import Yolo_Head
 from loss import Yolo_Loss
+
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -94,7 +96,7 @@ if __name__ == '__main__':
     ])
 
     train_batch_gen = Yolo_Generator(dataset_info_path=train_txt_path, batch_size=BATCH_SIZE, input_shape=INPUT_SHAPE, output_shape_list=output_shape_list, num_classes=NUM_CLASSES, anchors=ANCHORS, augs=None, is_train=True)
-    valid_batch_gen = Yolo_Generator(dataset_info_path=train_txt_path, batch_size=int(BATCH_SIZE/8), input_shape=INPUT_SHAPE, output_shape_list=output_shape_list, num_classes=NUM_CLASSES, anchors=ANCHORS, augs=None, is_train=True)
+    valid_batch_gen = Yolo_Generator(dataset_info_path=valid_txt_path, batch_size=max(1, int(BATCH_SIZE/8)), input_shape=INPUT_SHAPE, output_shape_list=output_shape_list, num_classes=NUM_CLASSES, anchors=ANCHORS, augs=None, is_train=False)
 
     model.compile(
         optimizer=RectifiedAdam(LR),
@@ -117,9 +119,9 @@ if __name__ == '__main__':
                  ]
 
     model.fit_generator(train_batch_gen,
-                        use_multiprocessing=False,
+                        use_multiprocessing=True,
                         max_queue_size=20,
                         callbacks=callbacks,
-                        workers=1,
+                        workers=4,
                         epochs=EPOCHS,
                         validation_data=valid_batch_gen)

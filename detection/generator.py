@@ -144,6 +144,7 @@ class Yolo_Generator(tf.keras.utils.Sequence):
         for index, img_path in enumerate(data):
             img = cv2.imread(img_path)
             img = cv2.resize(img, (self.input_shape[0], self.input_shape[1]))
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             # img = self.augs(image=img)['image']
             batch_img[index] = img / 255.
             txt_path = img_path.replace(img_format, ".txt")
@@ -161,16 +162,16 @@ class Yolo_Generator(tf.keras.utils.Sequence):
                             anchor_index = index
                             max_iou = iou
                     if max_iou != -1:
-                        branch_index = anchor_index // self.n_branch
+                        branch_index = (self.n_branch - 1) - anchor_index // self.n_branch
                         out_shape = self.output_shape_list[branch_index]
                         cell_w = 1 / out_shape[0]
                         cell_h = 1 / out_shape[1]
-                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index // self.n_branch), 0] = 1
-                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index // self.n_branch), 1] = float(cx) % cell_w
-                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index // self.n_branch), 2] = float(cy) % cell_h
-                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index // self.n_branch), 3] = np.log(float(w) / self.anchors[anchor_index][0])
-                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index // self.n_branch), 4] = np.log(float(h) / self.anchors[anchor_index][1])
-                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index // self.n_branch), 4 + int(cls)] = 1
+                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 0] = 1.0
+                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 1] = float(cx) % cell_w
+                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 2] = float(cy) % cell_h
+                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 3] = np.log(float(w) / self.anchors[anchor_index][0])
+                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 4] = np.log(float(h) / self.anchors[anchor_index][1])
+                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 5 + int(cls)] = 1.0
                         # x1 = float(cx) - float(w) / 2
                         # y1 = float(cy) - float(h) / 2
                         # x2 = float(cx) + float(w) / 2
@@ -178,8 +179,9 @@ class Yolo_Generator(tf.keras.utils.Sequence):
             #             cv2.rectangle(img, (int(x1 * self.input_shape[0]), int(y1 * self.input_shape[1])), (int(x2 * self.input_shape[0]), int(y2 * self.input_shape[1])), (0, 0, 255), 1)
             # for index in range(self.n_branch):
             #     for a_index in range(self.n_anchor_per_branch):
-            #         cv2.imshow(str(self.output_shape_list[index]) + "_anchor_" + str(a_index), cv2.resize(batch_gt[index][0, :, :, a_index, 0], (self.input_shape[0], self.input_shape[1])))
-            # cv2.imshow("test", img)
+            #         cv2.imshow(str(self.output_shape_list[index]) + "_anchor_" + str(a_index), cv2.resize(batch_gt[index][0, :, :, a_index, 7], (self.input_shape[1], self.input_shape[0])))
+            #         cv2.moveWindow(str(self.output_shape_list[index]) + "_anchor_" + str(a_index), self.input_shape[1] * a_index, self.input_shape[0] * index)
+            # cv2.imshow("test", cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
             # cv2.waitKey()
         return batch_img, batch_gt
 
