@@ -1,6 +1,5 @@
 import tensorflow as tf
 from network.backbone.regnet.block import XBlock, YBlock
-from network.common.blocks import SEBlock
 
 
 def RegNetXStage(in_tensor, n_block, filter_list, kernel_size_list, strides, groups, activation, weight_decay):
