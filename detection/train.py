@@ -9,11 +9,11 @@ from detection.generator import Yolo_Generator
 from utils.utils import get_flops
 from utils.logger import Logger
 from utils.scheduler import CosineAnnealingLRScheduler
-from tensorflow_addons.optimizers import RectifiedAdam
 from network.common.blocks import StemBlock
 from network.neck.neck import FPN
 from network.head.head import Yolo_Head
 from loss import Yolo_Loss
+from keras_radam import RAdam
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -68,7 +68,8 @@ if __name__ == '__main__':
                             [32, 32, 32],
                             "relu",
                             WEIGHT_DECAY)
-    # model.summary()
+    # model.load_weights("./saved_model/20220209-160037/ResNet_lr=0.001_wd=1e-05_batchsize=64_epoch=00009.h5")
+    model.summary()
     # get_flops(model)
     output_shape_list = []
     for output in model.outputs:
@@ -89,21 +90,21 @@ if __name__ == '__main__':
             albumentations.ColorJitter(),
         ], 3, p=0.5),
         albumentations.Flip(p=0.5),
-    ])
+    ], bbox_params=albumentations.BboxParams(format='coco', min_visibility=0.1))
 
     valid_transform = albumentations.Compose([
         albumentations.Resize(height=INPUT_SHAPE[0], width=INPUT_SHAPE[1]),
-    ])
+    ], bbox_params=albumentations.BboxParams(format='coco', min_visibility=0.1))
 
-    train_batch_gen = Yolo_Generator(dataset_info_path=train_txt_path, batch_size=BATCH_SIZE, input_shape=INPUT_SHAPE, output_shape_list=output_shape_list, num_classes=NUM_CLASSES, anchors=ANCHORS, augs=None, is_train=True)
-    valid_batch_gen = Yolo_Generator(dataset_info_path=valid_txt_path, batch_size=max(1, int(BATCH_SIZE/8)), input_shape=INPUT_SHAPE, output_shape_list=output_shape_list, num_classes=NUM_CLASSES, anchors=ANCHORS, augs=None, is_train=False)
+    train_batch_gen = Yolo_Generator(dataset_info_path=train_txt_path, batch_size=BATCH_SIZE, input_shape=INPUT_SHAPE, output_shape_list=output_shape_list, num_classes=NUM_CLASSES, anchors=ANCHORS, augs=train_transform, is_train=True)
+    valid_batch_gen = Yolo_Generator(dataset_info_path=valid_txt_path, batch_size=max(1, int(BATCH_SIZE/8)), input_shape=INPUT_SHAPE, output_shape_list=output_shape_list, num_classes=NUM_CLASSES, anchors=ANCHORS, augs=valid_transform, is_train=False)
 
     model.compile(
-        optimizer=RectifiedAdam(LR),
+        optimizer=RAdam(LR),
         loss={
-            "Yolo_0": Yolo_Loss(batch_size=BATCH_SIZE, scale=BRANCH_0_SCALE),
-            "Yolo_1": Yolo_Loss(batch_size=BATCH_SIZE, scale=BRANCH_1_SCALE),
-            "Yolo_2": Yolo_Loss(batch_size=BATCH_SIZE, scale=BRANCH_2_SCALE),
+            "Yolo_0": Yolo_Loss(scale=BRANCH_0_SCALE_XY),
+            "Yolo_1": Yolo_Loss(scale=BRANCH_1_SCALE_XY),
+            "Yolo_2": Yolo_Loss(scale=BRANCH_2_SCALE_XY),
         }
     )
 
@@ -123,5 +124,6 @@ if __name__ == '__main__':
                         max_queue_size=20,
                         callbacks=callbacks,
                         workers=4,
+                        # initial_epoch=9,
                         epochs=EPOCHS,
                         validation_data=valid_batch_gen)

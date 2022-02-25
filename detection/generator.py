@@ -143,52 +143,84 @@ class Yolo_Generator(tf.keras.utils.Sequence):
             batch_gt.append(np.zeros((self.batch_size, out_shape[0], out_shape[1], self.n_anchor_per_branch, (5 + self.num_classes)), dtype=np.float32))
         for index, img_path in enumerate(data):
             img = cv2.imread(img_path)
-            img = cv2.resize(img, (self.input_shape[0], self.input_shape[1]))
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            # img = self.augs(image=img)['image']
-            batch_img[index] = img / 255.
             txt_path = img_path.replace(img_format, ".txt")
-            with open(txt_path, "r") as file:
+            bboxes = []
+            with open(txt_path, 'r') as file:
                 lines = file.readlines()
                 for line in lines:
                     cls, cx, cy, w, h = line.split(" ")
-                    gt_bbox = [float(w), float(h)]
-                    max_iou = -1
-                    anchor_index = -1
-                    for index, anchor in enumerate(self.anchors):
-                        anchor_bbox = [anchor[0], anchor[1]]
-                        iou = self.get_iou(gt_bbox, anchor_bbox)
-                        if max_iou < iou:
-                            anchor_index = index
-                            max_iou = iou
-                    if max_iou != -1:
-                        branch_index = (self.n_branch - 1) - anchor_index // self.n_branch
-                        out_shape = self.output_shape_list[branch_index]
-                        cell_w = 1 / out_shape[0]
-                        cell_h = 1 / out_shape[1]
-                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 0] = 1.0
-                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 1] = float(cx) % cell_w
-                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 2] = float(cy) % cell_h
-                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 3] = np.log(float(w) / self.anchors[anchor_index][0])
-                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 4] = np.log(float(h) / self.anchors[anchor_index][1])
-                        batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 5 + int(cls)] = 1.0
-                        # x1 = float(cx) - float(w) / 2
-                        # y1 = float(cy) - float(h) / 2
-                        # x2 = float(cx) + float(w) / 2
-                        # y2 = float(cy) + float(h) / 2
-            #             cv2.rectangle(img, (int(x1 * self.input_shape[0]), int(y1 * self.input_shape[1])), (int(x2 * self.input_shape[0]), int(y2 * self.input_shape[1])), (0, 0, 255), 1)
+                    cx = int(float(cx) * img.shape[1])
+                    cy = int(float(cy) * img.shape[0])
+                    w = int(float(w) * img.shape[1])
+                    h = int(float(h) * img.shape[0])
+                    x_min = max(0, cx - w / 2)
+                    y_min = max(0, cy - h / 2)
+                    if w != 0 and h != 0:
+                        bboxes.append([x_min, y_min, w, h, cls])
+            transformed = self.augs(image=img, bboxes=bboxes)
+            transformed_img = transformed['image']
+            transformed_img = cv2.cvtColor(transformed_img, cv2.COLOR_BGR2RGB)
+            transformed_bboxes = transformed['bboxes']
+            batch_img[index] = transformed_img / 255.
+            for bbox in transformed_bboxes:
+                x_min, y_min, w, h, cls = bbox
+                cx = (x_min + w / 2) / transformed_img.shape[1]
+                cy = (y_min + h / 2) / transformed_img.shape[0]
+                w = float(w) / transformed_img.shape[1]
+                h = float(h) / transformed_img.shape[0]
+                gt_bbox = [w, h]
+                max_iou = -1
+                anchor_index = -1
+                for index, anchor in enumerate(self.anchors):
+                    anchor_bbox = [anchor[0], anchor[1]]
+                    iou = self.get_iou(gt_bbox, anchor_bbox)
+                    if max_iou < iou:
+                        anchor_index = index
+                        max_iou = iou
+                if max_iou != -1:
+                    branch_index = (self.n_branch - 1) - anchor_index // self.n_branch
+                    out_shape = self.output_shape_list[branch_index]
+                    cell_w = 1 / out_shape[0]
+                    cell_h = 1 / out_shape[1]
+                    batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 0] = 1.0
+                    batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 1] = float(cx) % cell_w
+                    batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 2] = float(cy) % cell_h
+                    batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 3] = np.log(float(w) / self.anchors[anchor_index][0])
+                    batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 4] = np.log(float(h) / self.anchors[anchor_index][1])
+                    batch_gt[branch_index][:, int(float(cy) * out_shape[1]), int(float(cx) * out_shape[0]), (anchor_index % self.n_branch), 5 + int(cls)] = 1.0
+            #         x1 = float(cx) - float(w) / 2
+            #         y1 = float(cy) - float(h) / 2
+            #         x2 = float(cx) + float(w) / 2
+            #         y2 = float(cy) + float(h) / 2
+            #         cv2.rectangle(transformed_img, (int(x1 * self.input_shape[1]), int(y1 * self.input_shape[0])), (int(x2 * self.input_shape[1]), int(y2 * self.input_shape[0])), (0, 0, 255), 1)
             # for index in range(self.n_branch):
             #     for a_index in range(self.n_anchor_per_branch):
-            #         cv2.imshow(str(self.output_shape_list[index]) + "_anchor_" + str(a_index), cv2.resize(batch_gt[index][0, :, :, a_index, 7], (self.input_shape[1], self.input_shape[0])))
+            #         cv2.imshow(str(self.output_shape_list[index]) + "_anchor_" + str(a_index), cv2.resize(batch_gt[index][0, :, :, a_index, 0], (self.input_shape[1], self.input_shape[0])))
             #         cv2.moveWindow(str(self.output_shape_list[index]) + "_anchor_" + str(a_index), self.input_shape[1] * a_index, self.input_shape[0] * index)
-            # cv2.imshow("test", cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            # cv2.imshow("test", cv2.cvtColor(transformed_img, cv2.COLOR_BGR2RGB))
             # cv2.waitKey()
         return batch_img, batch_gt
 
 
 if __name__ == "__main__":
-    gen = Yolo_Generator(dataset_info_path=train_txt_path, batch_size=1, input_shape=INPUT_SHAPE,
-                         output_shape_list=[(13, 13), (26, 26), (52, 52)], num_classes=NUM_CLASSES, anchors=ANCHORS,
-                         augs=None, is_train=True)
+    train_transform = albumentations.Compose([
+        albumentations.Resize(height=352, width=352),
+        albumentations.SomeOf([
+            albumentations.RandomRotate90(p=1),
+            albumentations.Sharpen(),
+        ], 2, p=0.5),
+        albumentations.SomeOf([
+            albumentations.RandomBrightness(),
+            albumentations.Affine(),
+            albumentations.RandomContrast(),
+            albumentations.Solarize(),
+            albumentations.ColorJitter(),
+        ], 3, p=0.5),
+        albumentations.Flip(p=0.5),
+    ], bbox_params=albumentations.BboxParams(format='coco', min_visibility=0.1))
+
+    gen = Yolo_Generator(dataset_info_path=train_txt_path, batch_size=1, input_shape=(352, 352, 3),
+                         output_shape_list=[(11, 11), (22, 22), (44, 44)], num_classes=NUM_CLASSES, anchors=ANCHORS,
+                         augs=train_transform, is_train=True)
     for i in tqdm.tqdm(range(gen.__len__())):
         gen.__getitem__(i)
